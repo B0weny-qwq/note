@@ -1,0 +1,7 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Note logo">
+  <rect width="200" height="200" rx="36" fill="#2563eb"/>
+  <path d="M57 44h86c11 0 20 9 20 20v92H57c-11 0-20-9-20-20V64c0-11 9-20 20-20z" fill="#f8fafc"/>
+  <path d="M57 44h86c11 0 20 9 20 20v12H37V64c0-11 9-20 20-20z" fill="#bfdbfe"/>
+  <path d="M63 96h74M63 118h74M63 140h48" stroke="#1e40af" stroke-width="10" stroke-linecap="round"/>
+  <path d="M74 30v30M126 30v30" stroke="#1e3a8a" stroke-width="12" stroke-linecap="round"/>
+</svg>
