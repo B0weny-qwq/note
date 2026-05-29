@@ -3,6 +3,7 @@
   "position": 20,
   "link": {
     "type": "generated-index",
+    "slug": "/study/asm-8086",
     "description": "8086 汇编基础、寄存器、寻址、跳转、循环和子程序调用笔记。"
   }
 }

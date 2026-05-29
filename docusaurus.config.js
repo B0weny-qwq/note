@@ -47,6 +47,24 @@ const config = {
     ],
   ],
 
+  plugins: [
+    [
+      '@docusaurus/plugin-client-redirects',
+      {
+        redirects: [
+          {
+            from: '/docs/category/8086-汇编',
+            to: '/docs/study/asm-8086',
+          },
+          {
+            from: '/docs/category/学习笔记',
+            to: '/docs/study',
+          },
+        ],
+      },
+    ],
+  ],
+
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
