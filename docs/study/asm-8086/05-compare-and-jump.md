@@ -1,142 +1,210 @@
 ---
 sidebar_position: 5
-title: 比较与条件跳转
-description: 记录 CMP、JMP、JBE、JAE、JCXZ 等跳转指令的用法。
+title: 算术、比较与条件跳转
+description: 整理 ADD、ADC、SUB、SBB、INC、DEC、NEG、CMP、乘除法和条件跳转。
 ---
 
-# 比较与条件跳转
+# 算术、比较与条件跳转
 
 ## 背景
 
-汇编中没有 C 语言那种直接的 `if`，通常通过 `CMP` 设置标志位，再通过条件跳转实现分支。
+算术指令负责加减乘除，比较指令通过修改标志位为条件跳转服务。8086 中没有 C 语言那种直接的 `if`，通常通过 `CMP` 设置标志位，再用跳转指令实现分支。
 
-## 正文
+## 加法类指令
 
-### 标号
+`ADD` 普通加法：
 
-定义：给代码中的某个位置起名字，方便跳转。
+```asm
+ADD dest, src
+```
+
+功能：
+
+```asm
+dest = dest + src
+```
 
 例子：
 
 ```asm
-A1: LODSB
+ADD AL, 18H
+ADD AX, BX
+ADD AL, [BX]
 ```
 
-含义：
+影响标志位：
 
 ```text
-A1 表示 LODSB 这一行的位置
+CF OF AF ZF SF PF
 ```
 
-C 对照：
-
-```c
-A1:
-```
-
-说明：
-
-- `A1`、`A2`、`A3`、`A4` 都只是标号，不是指令。
-
----
-
-### CMP
-
-定义：比较两个操作数，本质是做减法，但不保存结果，只影响标志位。
-
-例子：
+`ADC` 带进位加法：
 
 ```asm
-CMP AL, BH
+ADC dest, src
 ```
 
-含义：
+功能：
+
+```asm
+dest = dest + src + CF
+```
+
+32 位加法例子：
+
+```asm
+; DX:AX = DX:AX + BX:CX
+ADD AX, CX
+ADC DX, BX
+```
+
+`INC` 自增 1：
+
+```asm
+INC reg/mem
+```
+
+注意：
 
 ```text
-比较 AL 和 BH
-本质上临时计算 AL - BH
+INC 影响 OF、AF、ZF、SF、PF，但不影响 CF。
 ```
 
-C 对照：
+## 减法类指令
 
-```c
-// 用于后续 if 判断
-AL - BH;
-```
-
-说明：
-
-- `CMP` 本身不跳转。
-- 后面通常接 `JBE`、`JAE`、`JE`、`JNE` 等条件跳转。
-
----
-
-### JMP
-
-定义：无条件跳转。
-
-例子：
+`SUB` 普通减法：
 
 ```asm
-JMP A3
+SUB dest, src
 ```
 
-C 对照：
-
-```c
-goto A3;
-```
-
-说明：
-
-- `JMP` 不保存返回地址。
-- `JMP` 不能和 `RET` 配套。
-- `CALL` 才能和 `RET` 配套。
-
----
-
-### JCXZ
-
-定义：如果 `CX = 0`，就跳转。
-
-例子：
+功能：
 
 ```asm
-JCXZ A4
+dest = dest - src
 ```
 
-C 对照：
+`SBB` 带借位减法：
 
-```c
-if (CX == 0) goto A4;
+```asm
+SBB dest, src
 ```
 
-用途：
+功能：
+
+```asm
+dest = dest - src - CF
+```
+
+32 位减法例子：
+
+```asm
+; DX:AX = DX:AX - BX:CX
+SUB AX, CX
+SBB DX, BX
+```
+
+`DEC` 自减 1：
+
+```asm
+DEC reg/mem
+```
+
+注意：
 
 ```text
-循环开始前判断数据个数是否为 0
+DEC 影响 OF、AF、ZF、SF、PF，但不影响 CF。
 ```
 
----
+`NEG` 取负：
 
-### JBE
+```asm
+NEG reg/mem
+```
 
-定义：无符号数小于等于时跳转。
+功能：
+
+```asm
+reg/mem = 0 - reg/mem
+```
+
+也可以理解为：
+
+```text
+按位取反 + 1
+```
+
+标志特点：
+
+```text
+操作数原来是 0，则 CF = 0。
+操作数原来不是 0，则 CF = 1。
+```
+
+特殊溢出：
+
+```text
+8 位数：对 -128 取负会溢出。
+16 位数：对 -32768 取负会溢出。
+```
+
+## CMP
+
+格式：
+
+```asm
+CMP dest, src
+```
+
+功能：
+
+```asm
+dest - src
+```
+
+结果不保存，只影响标志位。`CMP` 本质上类似 `SUB`，但不改变原操作数。
 
 例子：
 
 ```asm
-CMP AL, BH
-JBE A2
+CMP AL, 80H
+CMP BX, DATA1
 ```
 
-C 对照：
+无符号比较：
 
-```c
-if (AL <= BH) goto A2;
+```text
+ZF = 1：两数相等
+CF = 1：dest < src
+CF = 0 且 ZF = 0：dest > src
 ```
 
-本题案例：
+带符号比较：
+
+```text
+SF XOR OF = 1：dest < src
+SF XOR OF = 0：dest >= src
+```
+
+简单记法：
+
+```text
+CMP 后：
+无符号看 CF
+有符号看 SF 和 OF
+是否相等看 ZF
+```
+
+## 无符号条件跳转
+
+| 指令 | 含义 | C 对照 |
+| --- | --- | --- |
+| `JA` | 大于跳转 | `if (A > B)` |
+| `JAE` | 大于等于跳转 | `if (A >= B)` |
+| `JB` | 小于跳转 | `if (A < B)` |
+| `JBE` | 小于等于跳转 | `if (A <= B)` |
+
+例子：
 
 ```asm
 CMP AL, BH
@@ -153,66 +221,7 @@ if (AL > max)
 }
 ```
 
-说明：
-
-- `JBE` 用于无符号数。
-- 有符号数小于等于用 `JLE`。
-
----
-
-### JAE
-
-定义：无符号数大于等于时跳转。
-
-例子：
-
-```asm
-CMP AL, BL
-JAE A3
-```
-
-C 对照：
-
-```c
-if (AL >= BL) goto A3;
-```
-
-本题案例：
-
-```asm
-CMP AL, BL
-JAE A3
-MOV BL, AL
-```
-
-C 对照：
-
-```c
-if (AL < min)
-{
-    min = AL;
-}
-```
-
-说明：
-
-- `JAE` 用于无符号数。
-- 有符号数大于等于用 `JGE`。
-
----
-
-### 无符号比较跳转
-
-| 指令 | 含义 | C 对照 |
-| --- | --- | --- |
-| `JA` | 大于跳转 | `if (A > B)` |
-| `JAE` | 大于等于跳转 | `if (A >= B)` |
-| `JB` | 小于跳转 | `if (A < B)` |
-| `JBE` | 小于等于跳转 | `if (A <= B)` |
-
----
-
-### 有符号比较跳转
+## 有符号条件跳转
 
 | 指令 | 含义 | C 对照 |
 | --- | --- | --- |
@@ -224,6 +233,165 @@ if (AL < min)
 说明：
 
 ```text
-题目说无符号数，用 JA/JAE/JB/JBE
-题目说有符号数，用 JG/JGE/JL/JLE
+题目说无符号数，用 JA、JAE、JB、JBE。
+题目说有符号数，用 JG、JGE、JL、JLE。
 ```
+
+## 常见跳转指令
+
+`JMP` 无条件跳转：
+
+```asm
+JMP A3
+```
+
+C 对照：
+
+```c
+goto A3;
+```
+
+`JCXZ` 判断 `CX` 是否为 0：
+
+```asm
+JCXZ A4
+```
+
+C 对照：
+
+```c
+if (CX == 0)
+{
+    goto A4;
+}
+```
+
+注意：
+
+```text
+JMP 不保存返回地址，不能和 RET 配套。
+CALL 才能和 RET 配套。
+```
+
+## MUL 和 IMUL
+
+`MUL` 无符号乘法，只有一个显式操作数。
+
+8 位乘法：
+
+```asm
+MUL r/m8
+```
+
+功能：
+
+```asm
+AX = AL * r/m8
+```
+
+16 位乘法：
+
+```asm
+MUL r/m16
+```
+
+功能：
+
+```asm
+DX:AX = AX * r/m16
+```
+
+`IMUL` 是带符号乘法，把操作数看成补码数。
+
+标志位：
+
+```text
+MUL：高半部分为 0，则 CF = OF = 0；否则 CF = OF = 1。
+IMUL：高半部分是低半部分的符号扩展，则 CF = OF = 0；否则 CF = OF = 1。
+```
+
+## DIV 和 IDIV
+
+`DIV` 无符号除法。
+
+除数是 8 位：
+
+```asm
+DIV r/m8
+```
+
+要求和结果：
+
+```text
+被除数在 AX
+AL = 商
+AH = 余数
+```
+
+除数是 16 位：
+
+```asm
+DIV r/m16
+```
+
+要求和结果：
+
+```text
+被除数在 DX:AX
+AX = 商
+DX = 余数
+```
+
+`IDIV` 是带符号除法，余数符号和被除数相同。
+
+注意：
+
+```text
+如果商放不进 AL 或 AX，会产生除法错误中断。
+除法后所有条件标志位无意义。
+```
+
+## CBW 和 CWD
+
+`CBW` 把字节扩展成字：
+
+```asm
+CBW
+```
+
+功能：
+
+```text
+把 AL 的符号位扩展到 AH。
+```
+
+`CWD` 把字扩展成双字：
+
+```asm
+CWD
+```
+
+功能：
+
+```text
+把 AX 的符号位扩展到 DX。
+```
+
+使用场景：
+
+```asm
+CBW
+IDIV r/m8
+
+CWD
+IDIV r/m16
+```
+
+## 最容易错的点
+
+- `ADD` 和 `ADC` 搭配做多字节加法。
+- `SUB` 和 `SBB` 搭配做多字节减法。
+- `INC` 和 `DEC` 不影响 `CF`。
+- `CMP` 不保存结果，只改标志位。
+- `MUL`、`DIV` 有隐含寄存器。
+- `IDIV` 前通常要做符号扩展。

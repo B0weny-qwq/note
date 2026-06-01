@@ -1,22 +1,161 @@
 ---
 sidebar_position: 7
-title: 子程序调用
-description: 记录 PROC、CALL、RET、参数传递、返回值和子程序保存现场。
+title: 循环、字符串指令与子程序
+description: 整理 LOOP、CLD、STD、LODSB、CALL、RET、PROC、参数传递和保存现场。
 ---
 
-# 子程序调用
+# 循环、字符串指令与子程序
 
 ## 背景
 
-今天学到的重点是子程序结构。子程序可以把一段功能独立出来，主程序通过 `CALL` 调用，子程序通过 `RET` 返回。8086 中返回值通常放在寄存器中。
+8086 中常用 `CX` 保存循环次数，用 `LOOP` 控制循环。处理连续内存数据时，常用 `SI`、`DI` 配合字符串指令。子程序则用 `CALL` 进入，用 `RET` 返回。
 
-## 正文
+## LOOP
 
-### PROC NEAR
+格式：
 
-定义：定义一个近过程，也就是同一代码段内的子程序。
+```asm
+LOOP label
+```
+
+等价理解：
+
+```asm
+DEC CX
+JNZ label
+```
+
+C 对照：
+
+```c
+CX--;
+if (CX != 0)
+{
+    goto label;
+}
+```
+
+说明：
+
+- `LOOP` 默认使用 `CX` 作为计数器。
+- 每执行一次 `LOOP`，`CX` 自动减 1。
+- 如果减完后 `CX != 0`，就跳转。
+- 如果减完后 `CX = 0`，就继续执行下一条指令。
+
+## CLD 和 STD
+
+`CLD` 清除方向标志 `DF`：
+
+```asm
+CLD
+```
+
+含义：
+
+```text
+DF = 0，字符串指令执行后 SI 或 DI 自动增加。
+```
+
+`STD` 设置方向标志 `DF`：
+
+```asm
+STD
+```
+
+含义：
+
+```text
+DF = 1，字符串指令执行后 SI 或 DI 自动减少。
+```
+
+## LODSB
+
+格式：
+
+```asm
+LODSB
+```
+
+功能：
+
+```text
+从 DS:SI 读取一个字节到 AL。
+```
+
+在 `DF = 0` 时等价于：
+
+```asm
+MOV AL, [SI]
+INC SI
+```
+
+C 对照：
+
+```c
+AL = *p;
+p++;
+```
 
 例子：
+
+```asm
+MOV SI, 3000H
+CLD
+LODSB
+```
+
+如果：
+
+```text
+DS:[3000H] = 09H
+```
+
+执行后：
+
+```text
+AL = 09H
+SI = 3001H
+```
+
+## 循环读取数组
+
+汇编：
+
+```asm
+MOV SI, 3000H
+MOV CX, 0008H
+CLD
+
+A1:
+    LODSB
+    LOOP A1
+```
+
+C 对照：
+
+```c
+p = 0x3000;
+count = 8;
+
+while (count != 0)
+{
+    AL = *p;
+    p++;
+    count--;
+}
+```
+
+说明：
+
+```text
+SI 指向当前数据。
+LODSB 读取当前数据，并让 SI 自动变化。
+LOOP 控制循环次数。
+```
+
+## PROC 和 ENDP
+
+`PROC` 定义过程开始：
 
 ```asm
 BRANCH PROC NEAR
@@ -30,44 +169,38 @@ void branch()
 }
 ```
 
-说明：
-
-- `PROC` 是伪指令。
-- `NEAR` 表示近调用，只保存和恢复 `IP`，不改变 `CS`。
-
----
-
-### ENDP
-
-定义：表示过程定义结束。
-
-例子：
+`ENDP` 定义过程结束：
 
 ```asm
 BRANCH ENDP
 ```
 
-C 对照：
-
-```c
-}
-```
-
 说明：
 
-- `ENDP` 是伪指令。
-- 它用于和 `PROC` 配套。
+```text
+PROC 和 ENDP 是伪指令。
+NEAR 表示近过程，只保存和恢复 IP，不改变 CS。
+```
 
----
+## CALL
 
-### CALL
-
-定义：调用子程序，并自动保存返回地址。
-
-例子：
+格式：
 
 ```asm
 CALL BRANCH
+```
+
+功能：
+
+```text
+调用子程序，并自动保存返回地址。
+```
+
+执行逻辑：
+
+```text
+1. 把 CALL 下一条指令的地址压入栈。
+2. 跳转到 BRANCH 子程序执行。
 ```
 
 C 对照：
@@ -76,44 +209,28 @@ C 对照：
 branch();
 ```
 
-执行逻辑：
+## RET
 
-```text
-1. 把 CALL 下一条指令的地址压入栈
-2. 跳转到 BRANCH 子程序执行
-```
-
-说明：
-
-- `CALL` 会保存返回地址。
-- 所以后面遇到 `RET` 才能回来。
-
----
-
-### RET
-
-定义：从子程序返回到 `CALL` 的下一条指令。
-
-例子：
+格式：
 
 ```asm
 RET
 ```
 
-C 对照：
+功能：
 
-```c
-return;
+```text
+从子程序返回到 CALL 的下一条指令。
 ```
 
 执行逻辑：
 
 ```text
-1. 从栈中弹出返回地址
-2. 跳回 CALL 后面的那条指令
+1. 从栈中弹出返回地址。
+2. 跳回 CALL 后面的那条指令。
 ```
 
-具体案例：
+例子：
 
 ```asm
 CALL BRANCH
@@ -127,55 +244,28 @@ BRANCH ENDP
 执行结果：
 
 ```text
-RET 后回到 HERE: JMP HERE
+RET 后回到 HERE: JMP HERE。
 ```
 
----
-
-### CALL 和 RET 的关系
-
-例子：
-
-```asm
-CALL BRANCH
-
-BRANCH PROC NEAR
-    RET
-BRANCH ENDP
-```
-
-C 对照：
-
-```c
-branch();
-
-void branch()
-{
-    return;
-}
-```
+## CALL 和 RET 的关系
 
 重点：
 
 ```text
-CALL 负责进去
-RET 负责回来
+CALL 负责进去。
+RET 负责回来。
 ```
 
 注意：
 
 ```text
-CALL 和 RET 是一对
-JMP 和 RET 不是一对
+CALL 和 RET 是一对。
+JMP 和 RET 不是一对。
 ```
 
----
+## 参数传递
 
-### 子程序入口参数
-
-定义：主程序调用子程序前，先把参数放到约定的寄存器或内存中。
-
-例子：
+主程序调用子程序前，先把参数放到约定的寄存器或内存中。
 
 ```asm
 MOV SI, 3000H
@@ -186,8 +276,8 @@ CALL BRANCH
 含义：
 
 ```text
-DS:SI 指向数据首地址
-CX 表示数据个数
+DS:SI 指向数据首地址。
+CX 表示数据个数。
 ```
 
 C 对照：
@@ -196,13 +286,9 @@ C 对照：
 branch(p, count);
 ```
 
----
+## 返回值
 
-### 子程序返回值
-
-定义：子程序计算完成后，通常把结果放到某个寄存器中返回。
-
-例子：
+子程序计算完成后，通常把返回值放到约定寄存器中。
 
 ```asm
 MOV AX, BX
@@ -217,52 +303,36 @@ return BX;
 
 说明：
 
-- `RET` 本身不负责返回值。
-- 返回值要提前放入寄存器。
-- 本实验中结果放在 `AX`。
+```text
+RET 本身不负责返回值。
+返回值要提前放入寄存器。
+```
 
----
+## 保存现场
 
-### 保存现场
-
-定义：子程序中如果要修改某些寄存器，可以先 `PUSH` 保存，结束前用 `POP` 恢复。
-
-例子：
+子程序中如果要修改某些寄存器，可以先 `PUSH` 保存，结束前用 `POP` 恢复。
 
 ```asm
 PUSH SI
 PUSH CX
 PUSH BX
 
+; 子程序主体
+
 POP BX
 POP CX
 POP SI
 ```
 
-C 对照：
-
-```c
-old_SI = SI;
-old_CX = CX;
-old_BX = BX;
-
-// 子程序修改寄存器
-
-BX = old_BX;
-CX = old_CX;
-SI = old_SI;
-```
-
 说明：
 
-- `PUSH` 和 `POP` 顺序必须相反。
-- 因为栈是后进先出。
+```text
+PUSH 和 POP 顺序必须相反，因为栈是后进先出。
+```
 
----
+## 最大最小值子程序案例
 
-### 最大最小值子程序案例
-
-原程序核心：
+核心代码：
 
 ```asm
 BRANCH PROC NEAR
@@ -318,20 +388,8 @@ BL = 最小值
 BX = BH:BL
 
 MOV AX, BX 后：
-
 AH = 最大值
 AL = 最小值
-```
-
----
-
-### A1、A2、A3、A4 跳转关系
-
-```text
-A1 是循环开始，负责读取当前数据
-A2 是检查最小值
-A3 是本轮循环结束点
-A4 是子程序出口
 ```
 
 流程：
@@ -374,45 +432,7 @@ MOV AX, BX
 A4: RET
 ```
 
-C 对照：
-
-```c
-if (CX == 0)
-    goto A4;
-
-BH = *SI;
-BL = BH;
-
-A1:
-    AL = *SI;
-    SI++;
-
-    if (AL <= BH)
-        goto A2;
-
-    BH = AL;
-    goto A3;
-
-A2:
-    if (AL >= BL)
-        goto A3;
-
-    BL = AL;
-
-A3:
-    CX--;
-    if (CX != 0)
-        goto A1;
-
-    AX = BX;
-
-A4:
-    return;
-```
-
----
-
-### 求和子程序案例
+## 求和子程序案例
 
 题目：
 
@@ -432,7 +452,7 @@ for (i = 2; i <= N; i += 2)
 }
 ```
 
-汇编结构示例：
+汇编结构：
 
 ```asm
 DATA7 SEGMENT
@@ -502,16 +522,3 @@ DX  MUL 的高 16 位结果
 ```asm
 MOV result, AX
 ```
-
-C 对照：
-
-```c
-result = S;
-```
-
----
-
-## 参考
-
-- 课堂实验代码
-- 8086 汇编基础指令表

@@ -40,7 +40,7 @@ export default function Home() {
           <div className="container">
             <Heading as="h2">笔记分类</Heading>
             <div className={styles.grid}>
-              <Link className={styles.card} to="/docs/study/example-note">
+              <Link className={styles.card} to="/docs/study/asm-8086">
                 <h3>学习笔记</h3>
                 <p>记录课程、论文、技术文档、实验过程和复盘。</p>
               </Link>

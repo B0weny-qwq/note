@@ -1,31 +1,42 @@
 ---
 sidebar_position: 4
 title: 数据定义与栈操作
-description: 记录 DB、DW、DUP、PUSH、POP 等基础用法。
+description: 整理 DB、DW、DUP、小端存储、PUSH、POP 和栈的基本规则。
 ---
 
 # 数据定义与栈操作
 
 ## 背景
 
-实验程序中经常需要定义数据区和堆栈区。子程序中也常用 `PUSH` 和 `POP` 保存现场。
+8086 程序需要在数据段中定义变量，在堆栈段中保存临时数据、返回地址和现场。数据定义和栈操作虽然属于基础内容，但非常容易和字节、字、地址顺序混淆。
 
-## 正文
-
-### DB
-
-定义：Define Byte，定义字节数据。
+## 数据段格式
 
 例子：
 
 ```asm
-NUM DB 09H,03H,08H,01H
+DATA SEGMENT
+AREA1  DB 14H, 3BH
+AREA2  DB 3 DUP(0)
+ARRAY  DW 3100H, 01A6H
+STRING DB 'GOOD'
+DATA ENDS
 ```
 
 含义：
 
 ```text
-定义 4 个字节数据
+DB      Define Byte，定义字节
+DW      Define Word，定义字
+DUP     重复定义
+```
+
+## DB
+
+`DB` 定义字节数据，一个数据占 8 位。
+
+```asm
+NUM DB 09H, 03H, 08H, 01H
 ```
 
 C 对照：
@@ -34,22 +45,18 @@ C 对照：
 unsigned char NUM[] = {0x09, 0x03, 0x08, 0x01};
 ```
 
----
+字符也可以用 `DB` 定义：
 
-### DW
+```asm
+STRING DB 'GOOD'
+```
 
-定义：Define Word，定义字数据，一个字是 16 位。
+## DW
 
-例子：
+`DW` 定义字数据，一个数据占 16 位。
 
 ```asm
 result DW 0
-```
-
-含义：
-
-```text
-定义一个 16 位变量 result，初始值为 0
 ```
 
 C 对照：
@@ -58,13 +65,27 @@ C 对照：
 unsigned short result = 0;
 ```
 
----
+数组例子：
 
-### DUP
+```asm
+ARRAY DW 3100H, 01A6H
+```
 
-定义：重复定义数据。
+## DUP
 
-例子：
+`DUP` 用于重复定义。
+
+```asm
+AREA2 DB 3 DUP(0)
+```
+
+含义：
+
+```text
+定义 3 个字节，初值都为 0。
+```
+
+堆栈区常见写法：
 
 ```asm
 DW 64 DUP(?)
@@ -73,71 +94,131 @@ DW 64 DUP(?)
 含义：
 
 ```text
-定义 64 个未初始化的字
+定义 64 个未初始化的字。
 ```
 
-C 对照：
+## 小端存储
 
-```c
-unsigned short stack[64];
+8086 使用小端方式保存字数据：
+
+```asm
+ARRAY DW 3100H
 ```
 
----
+内存中低地址放低字节，高地址放高字节：
 
-### PUSH
+```text
+低地址：00H
+高地址：31H
+```
 
-定义：把 16 位数据压入栈。
+结论：
+
+```text
+低字节在前，高字节在后。
+```
+
+## 栈的基本特点
+
+8086 的栈在 `SS` 段中，栈顶由 `SP` 指向。
+
+特点：
+
+```text
+先进后出 FILO
+栈操作单位是字，也就是 16 位
+PUSH 只压入字
+POP 只弹出字
+SP 指向当前栈顶
+入栈时 SP 减小
+出栈时 SP 增大
+```
+
+栈的增长方向：
+
+```text
+高地址 -> 低地址
+```
+
+## PUSH
+
+格式：
+
+```asm
+PUSH src
+```
+
+功能：
+
+```asm
+SP = SP - 2
+SS:[SP] = src
+```
+
+`src` 可以是：
+
+```text
+16 位通用寄存器
+段寄存器
+16 位存储器操作数
+```
 
 例子：
 
 ```asm
-PUSH SI
+PUSH AX
+PUSH BX
+PUSH DS
+PUSH WORD PTR [BX]
 ```
 
-含义：
+常见错误：
+
+```asm
+PUSH AL       ; 错，不能压入字节
+PUSH 1234H    ; 8086 下通常不允许立即数直接入栈
+```
+
+## POP
+
+格式：
+
+```asm
+POP dest
+```
+
+功能：
+
+```asm
+dest = SS:[SP]
+SP = SP + 2
+```
+
+`dest` 可以是：
 
 ```text
-保存 SI 的当前值
+16 位通用寄存器
+段寄存器
+16 位存储器操作数
 ```
-
-C 对照：
-
-```c
-stack.push(SI);
-```
-
-说明：
-
-- 8086 中一次 `PUSH` 压入 2 字节。
-- 子程序中常用 `PUSH` 保存会被修改的寄存器。
-
----
-
-### POP
-
-定义：从栈顶弹出 16 位数据到寄存器。
 
 例子：
 
 ```asm
-POP SI
+POP AX
+POP BX
+POP DS
+POP WORD PTR [SI]
 ```
 
-含义：
+常见错误：
 
-```text
-恢复 SI 的值
+```asm
+POP DL       ; 错，DL 是 8 位
+POP CS       ; 错，CS 不能作为 POP 目的操作数
 ```
 
-C 对照：
-
-```c
-SI = stack.pop();
-```
-
----
-
-### PUSH / POP 顺序
+## PUSH / POP 顺序
 
 例子：
 
@@ -154,19 +235,42 @@ POP SI
 说明：
 
 ```text
-栈是后进先出
-所以先 PUSH 的要后 POP
-后 PUSH 的要先 POP
+栈是后进先出。
+先 PUSH 的要后 POP，后 PUSH 的要先 POP。
 ```
 
-C 对照：
+## 栈操作例子
 
-```c
-push(SI);
-push(CX);
-push(BX);
+已知：
 
-BX = pop();
-CX = pop();
-SI = pop();
+```text
+AX = 1000H
+BX = 2000H
+CX = 4000H
+SP = 1000H
+```
+
+执行：
+
+```asm
+PUSH AX
+PUSH BX
+PUSH CX
+POP BX
+POP AX
+POP CX
+```
+
+最后结果：
+
+```text
+BX = 4000H
+AX = 2000H
+CX = 1000H
+```
+
+原因：
+
+```text
+最后压入的是 CX，所以第一次 POP 得到 4000H。
 ```
