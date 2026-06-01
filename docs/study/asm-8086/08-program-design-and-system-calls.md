@@ -1,22 +1,22 @@
 ---
 sidebar_position: 8
-title: 汇编程序设计、伪指令与系统调用
-description: 整理完整程序框架、常用伪指令、DOS/BIOS 调用和基本设计方法。
+title: 汇编程序设计与系统调用实战
+description: 详细整理程序框架、伪指令、INT 21H/BIOS 调用、注释命名规范、易错点和注意事项。
 ---
 
-# 汇编程序设计、伪指令与系统调用
+# 汇编程序设计与系统调用实战
 
 ## 背景
 
-第 4 章把前面分散的指令知识收拢到“怎么写成完整程序”上。重点不再是单条指令，而是程序框架、伪指令、系统调用和顺序/分支/循环/子程序四种设计方式。
+第 4 章的关键不是再背指令，而是把前面指令组织成可维护程序。核心能力是：固定程序骨架、统一注释命名、明确系统调用约定。
 
-## 完整程序框架
+## 完整程序骨架
 
-常见结构：
+### 怎么用
 
 ```asm
 DATA SEGMENT
-    BUF DB 100 DUP(?)
+    msg DB 'HELLO$', 0
 DATA ENDS
 
 STACK SEGMENT
@@ -28,83 +28,157 @@ CODE SEGMENT
 START:
     MOV AX, DATA
     MOV DS, AX
-    ; ...
+
+    ; body
+
     MOV AH, 4CH
     INT 21H
 CODE ENDS
 END START
 ```
 
-要点：
+### 注释与命名建议
 
-- `ASSUME` 只告诉汇编器段关系，不会真的改寄存器。
-- `END START` 表示汇编结束并指定入口点。
-- 字符串程序一般还要准备附加段 `ES`。
+- 入口标签统一 `START`，退出路径统一 `exit_ok`、`exit_err`。
+- 段内变量用业务语义名：`input_buf`、`line_len`、`err_code`。
+- 每段开头加用途注释。
 
-## 常用伪指令和操作符
+### 易错点
 
-常见伪指令：
+- `ASSUME` 写了但没执行 `MOV DS, AX`，导致读错数据段。
+- 过程退出用了 `RET` 而不是程序退出中断。
 
-- `DB`、`DW`、`DD`：定义字节、字、双字。
-- `DUP`：重复定义存储空间。
-- `SEGMENT`、`ENDS`：定义段。
-- `PROC`、`ENDP`：定义过程。
-- `EQU`：定义符号常量。
-- `ORG`：指定后续偏移地址。
+### 注意点
 
-常见操作符：
+- `END START` 必须指向真实入口标签。
 
-- `OFFSET`：取偏移地址。
-- `SEG`：取段地址。
-- `PTR`：强制类型。
-- `TYPE`、`LENGTH`、`SIZE`：用于数据长度计算。
+## 常用伪指令与操作符
 
-## DOS / BIOS 中断调用
-
-第 4 章把 `INT` 用作系统服务入口：
-
-- `INT 21H`：DOS 功能调用，常用于键盘输入、字符串输出、程序返回。
-- `INT 10H`：BIOS 显示服务。
-- `INT 16H`：BIOS 键盘服务。
-
-典型退出程序：
+### 怎么用
 
 ```asm
-MOV AH, 4CH
-INT 21H
+count      DW 0
+rx_buf     DB 128 DUP(0)
+tmp_ptr    DW OFFSET rx_buf
+UART_DATA  EQU 03F8H
 ```
 
-典型字符串输出：
+`OFFSET` 取地址，`PTR` 指定位宽：
+
+```asm
+MOV BYTE PTR [SI], 0
+MOV AX, OFFSET rx_buf
+```
+
+### 注释与命名建议
+
+- 常量全部 `ALL_CAPS`：`UART_DATA`、`MAX_LEN`。
+- 缓冲区用 `_buf`，长度用 `_len`，索引用 `_idx`。
+
+### 易错点
+
+- 把 `MOV AX, var` 当成取地址（这是取内容）。
+- 未指定位宽导致汇编器无法判断。
+
+### 注意点
+
+- `DUP(?)` 是未初始化，不等于清零。
+
+## DOS/BIOS 调用
+
+## INT 21H 常用功能
+
+### 怎么用
+
+打印 `$` 结尾字符串：
 
 ```asm
 MOV AH, 09H
-MOV DX, OFFSET MSG
+MOV DX, OFFSET msg
 INT 21H
 ```
 
-## 程序设计方法
+键盘输入单字符：
 
-课程把汇编程序分成四种基本结构：
+```asm
+MOV AH, 01H
+INT 21H           ; AL 返回字符
+```
 
-- 顺序程序：按步骤直接执行，常用于公式计算和代码转换。
-- 分支程序：`CMP + 条件转移` 实现条件判断。
-- 循环程序：`LOOP` 或 `CMP/Jcc` 控制重复执行。
-- 子程序设计：`CALL/RET` 封装重复逻辑。
+程序退出：
 
-## 常见题型
+```asm
+MOV AH, 4CH
+MOV AL, 00H
+INT 21H
+```
 
-第 4 章反复出现的应用题有：
+### 注释与命名建议
 
-- 字符分类、大小写转换。
-- 十进制、二进制、BCD、ASCII 之间的转换。
-- 查表程序。
-- 多精度运算。
-- 子程序参数传递和返回值设计。
+- 中断调用前注明“输入寄存器/输出寄存器”。
 
-## 写题时的固定检查项
+```asm
+; in: AH=09H, DS:DX=msg$
+; out: none
+INT 21H
+```
 
-- 入口是否初始化 `DS`、`SS`、`ES`。
-- 内存操作数是否标明字节/字。
-- 是否保存被子程序改动的寄存器。
-- `CALL`、`RET`、`INT` 的返回路径是否匹配。
-- DOS 字符串输出是否以 `$` 结束。
+### 易错点
+
+- 09H 输出字符串忘了 `$` 结束符。
+- 调用前 `DS:DX` 指针未准备好。
+
+### 注意点
+
+- 中断调用可能改动寄存器，关键寄存器要提前保存。
+
+## BIOS 常见中断
+
+- `INT 10H`：显示服务。
+- `INT 16H`：键盘服务。
+
+建议：课程实验优先 DOS，直接硬件交互才转 BIOS。
+
+## 程序结构化模板
+
+### 怎么用
+
+```asm
+CALL read_line
+JC   exit_err
+CALL parse_line
+JC   exit_err
+CALL process
+JMP  exit_ok
+
+exit_err:
+    MOV AL, 1
+    JMP exit_prog
+
+exit_ok:
+    XOR AL, AL
+
+exit_prog:
+    MOV AH, 4CH
+    INT 21H
+```
+
+### 注释与命名建议
+
+- 标签按功能命名：`parse_fail`、`calc_done`、`print_retry`。
+- 不再使用 `L1/L2/L3`。
+
+### 易错点
+
+- 过程失败路径没有统一出口，导致资源/寄存器恢复不一致。
+
+### 注意点
+
+- 复杂流程尽量“单入口、少出口”，异常路径集中处理。
+
+## 章末检查清单
+
+- `DS/SS/ES` 是否在入口显式初始化。
+- 系统调用前寄存器是否按约定装载。
+- 字符串输出是否保证 `$` 终止。
+- 标签命名是否具备语义，不使用无意义编号标签。
