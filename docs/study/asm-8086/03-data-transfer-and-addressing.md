@@ -1,480 +1,250 @@
 ---
 sidebar_position: 3
-title: 数据传送指令
-description: 整理 MOV、XCHG、XLAT、IN、OUT、LEA、LDS、LES 和标志传送指令。
+title: 数据传送与寻址实战
+description: 详细整理 MOV、XCHG、XLAT、IN/OUT、LEA/LDS/LES 的写法、命名注释规范、易错点和注意事项。
 ---
 
-# 数据传送指令
+# 数据传送与寻址实战
 
 ## 背景
 
-数据传送指令负责把数据从一个位置送到另一个位置。常见来源和目的地包括寄存器、存储器、立即数、段寄存器、I/O 端口、堆栈和标志寄存器。
+8086 中“数据传送”看起来简单，但最容易在工程里出错：位宽不匹配、段寄存器误用、寻址默认段搞错、端口地址写错。这个章节按“能直接写代码”的标准整理。
 
-多数数据传送指令不影响标志位，`SAHF`、`POPF` 等标志传送指令除外。
+## 操作数速查
 
-## 指令总览
-
-常见数据传送类指令：
-
-```asm
-MOV
-PUSH
-POP
-XCHG
-XLAT
-IN
-OUT
-LEA
-LDS
-LES
-LAHF
-SAHF
-PUSHF
-POPF
+```text
+r8:  AL AH BL BH CL CH DL DH
+r16: AX BX CX DX SI DI BP SP
+seg: CS DS ES SS
+m8/m16: 内存字节/字
+imm: 立即数
 ```
-
-`PUSH` 和 `POP` 单独放在“数据定义与栈操作”中整理。
 
 ## MOV
 
-格式：
+### 怎么用
 
 ```asm
 MOV dest, src
 ```
 
-功能：
-
 ```asm
-dest = src
-```
-
-例子：
-
-```asm
-MOV AL, 'B'
 MOV AX, BX
-MOV AL, [BX]
-MOV [BX], AL
+MOV AL, [SI]
+MOV [DI], AL
+MOV AX, 1234H
+MOV WORD PTR [BX], 1234H
 ```
 
-含义：
-
-```text
-把源操作数送入目的操作数。
-```
-
-## MOV 的合法形式
-
-立即数送寄存器：
+常见初始化段寄存器：
 
 ```asm
-MOV CL, 4
-MOV DX, 0FFH
-MOV SI, 200H
-```
-
-立即数送内存：
-
-```asm
-MOV bvar, 0AH
-MOV wvar, 0BH
-```
-
-如果内存大小不明确，要写：
-
-```asm
-MOV BYTE PTR [BX], 255
-MOV WORD PTR [BX], 255
-```
-
-寄存器之间传送：
-
-```asm
-MOV AH, AL
-MOV AX, BX
-MOV DS, AX
-MOV ES, AX
-```
-
-寄存器和内存之间传送：
-
-```asm
-MOV AL, [BX]
-MOV [BX], AL
-MOV DX, [BP]
-MOV DX, [BP+4]
-```
-
-## MOV 的常见错误
-
-两个操作数位数不一致：
-
-```asm
-MOV AL, 050AH     ; 错，AL 是 8 位，050AH 是 16 位
-MOV SI, DL        ; 错，SI 是 16 位，DL 是 8 位
-```
-
-两个操作数都是内存：
-
-```asm
-MOV buf2, buf1    ; 错
-```
-
-正确写法：
-
-```asm
-MOV AX, buf1
-MOV buf2, AX
-```
-
-无法判断内存大小：
-
-```asm
-MOV [BX+SI], 255  ; 错
-```
-
-正确写法：
-
-```asm
-MOV BYTE PTR [BX+SI], 255
-MOV WORD PTR [BX+SI], 255
-```
-
-段寄存器操作错误：
-
-```asm
-MOV DS, ES        ; 错
-MOV DS, 100H      ; 错
-MOV CS, [SI]      ; 错
-```
-
-正确写法：
-
-```asm
-MOV AX, ES
+MOV AX, DATA
 MOV DS, AX
 ```
 
-或者：
+### 注释与命名建议
+
+- 变量名：`snake_case`，并带单位或语义，例如 `sample_count`、`uart_status`。
+- 地址指针名：用 `ptr_` 前缀，例如 `ptr_src`、`ptr_dst`。
+- `MOV` 注释写“目标含义”，不要只写“move”。
 
 ```asm
-MOV AX, 100H
-MOV DS, AX
+MOV SI, OFFSET src_buf    ; SI -> 源缓冲区首地址
+MOV DI, OFFSET dst_buf    ; DI -> 目标缓冲区首地址
+MOV CX, buf_len           ; 待处理字节数
 ```
 
-注意：
+### 易错点
 
-```text
-CS 不能作为 MOV 的目的操作数。
-```
+- 内存到内存非法：
+  `MOV buf2, buf1` 错，必须借寄存器中转。
+- 位宽不匹配：
+  `MOV AL, 1234H` 错。
+- 段寄存器限制：
+  `MOV DS, 1000H` 错，需先到通用寄存器。
+- `CS` 不能作为 `MOV` 的目的操作数。
+
+### 注意点
+
+- 内存位宽不明确时一定加 `BYTE PTR` 或 `WORD PTR`。
+- `BP` 参与寻址时，默认段是 `SS`，不是 `DS`。
 
 ## XCHG
 
-格式：
-
-```asm
-XCHG dest, src
-```
-
-功能：
-
-```text
-交换 dest 和 src 的内容。
-```
-
-例子：
+### 怎么用
 
 ```asm
 XCHG AX, BX
-XCHG AH, AL
-XCHG AX, WVAR
-XCHG AL, BYTE PTR WVAR+1
+XCHG AL, [SI]
 ```
 
-允许：
+### 注释与命名建议
 
-```text
-寄存器 <-> 寄存器
-寄存器 <-> 内存
-```
-
-不允许：
+- 交换操作建议在注释里写交换目的，避免后续误改。
 
 ```asm
-XCHG buf1, buf2   ; 错，两个都是内存
-XCHG AX, DS       ; 错，段寄存器不能参与
+XCHG AX, BX   ; AX/BX 交换，AX 暂存旧 BX
 ```
+
+### 易错点
+
+- 内存与内存不能直接交换。
+- 段寄存器不参与 `XCHG`。
+
+### 注意点
+
+- 如果交换只为临时保存，优先考虑 `PUSH/POP`，可读性更高。
 
 ## XLAT
 
-格式：
+### 怎么用
 
 ```asm
+; AL = 索引，BX = 表首地址
 XLAT
+; 执行后 AL = DS:[BX + AL]
 ```
 
-功能：
+示例：7 段码查表
 
 ```asm
-AL = DS:[BX + AL]
-```
-
-使用前要准备：
-
-```text
-BX = 表格首地址
-AL = 表内偏移量
-```
-
-例子：
-
-```asm
-TABLE DB 40H, 79H, 24H, 30H, 19H
-      DB 12H, 02H, 78H, 00H, 18H
+digit_to_seg DB 3FH,06H,5BH,4FH,66H,6DH,7DH,07H,7FH,6FH
 
 MOV AL, 5
-MOV BX, OFFSET TABLE
-XLAT
+MOV BX, OFFSET digit_to_seg
+XLAT                 ; AL = 6DH
 ```
 
-执行后：
+### 注释与命名建议
 
-```text
-AL = 12H
-```
+- 表名用“输入到输出”命名：`digit_to_seg`、`scan_to_ascii`。
+- 注释写清索引范围：
+  `; AL: 0..9`
 
-## IN
+### 易错点
 
-`IN` 从 I/O 端口读数据，数据寄存器只能是 `AL` 或 `AX`。
+- 忘记初始化 `BX`。
+- `AL` 越界导致查表越界。
 
-直接端口地址：
+### 注意点
+
+- 表在当前 `DS` 段中；跨段查表要先切换段寄存器或重构数据布局。
+
+## IN / OUT
+
+### 怎么用
+
+8 位数据：
 
 ```asm
-IN AL, port8
-IN AX, port8
+IN  AL, 60H
+OUT 61H, AL
 ```
 
-例子：
+16 位数据：
 
 ```asm
-IN AL, 0F1H
-IN AX, 80H
+IN  AX, 80H
+OUT 70H, AX
 ```
 
-端口地址放在 `DX`：
+16 位端口号：
 
 ```asm
-MOV DX, 310H
-IN AL, DX
-```
-
-注意：
-
-```text
-直接端口地址只能是 8 位，也就是 00H 到 FFH。
-端口号大于 FFH 时，必须用 DX。
-```
-
-## OUT
-
-`OUT` 向 I/O 端口写数据，数据寄存器只能是 `AL` 或 `AX`。
-
-直接端口地址：
-
-```asm
-OUT port8, AL
-OUT port8, AX
-```
-
-例子：
-
-```asm
-OUT 85H, AL
-OUT 44H, AX
-```
-
-端口地址放在 `DX`：
-
-```asm
-MOV DX, 0FF4H
+MOV DX, 03F8H
+IN  AL, DX
 OUT DX, AL
 ```
 
-常见错误：
+### 注释与命名建议
+
+- 端口号用常量名：
 
 ```asm
-IN BX, DX       ; 错，数据寄存器只能是 AL 或 AX
-OUT 0FFEH, AL   ; 错，直接端口号超过 FFH
+UART0_DATA  EQU 03F8H
+UART0_STAT  EQU 03FDH
 ```
 
-正确写法：
+- 注释写“端口语义”，不是只写端口值。
 
 ```asm
-MOV DX, 0FFEH
-OUT DX, AL
+IN AL, DX            ; 读取 UART 状态寄存器
 ```
 
-## LEA
+### 易错点
 
-格式：
+- `IN BX, DX` 非法，数据寄存器只能是 `AL/AX`。
+- 端口号大于 `FFH` 仍写成立即数形式是错的，必须走 `DX`。
+
+### 注意点
+
+- 对 I/O 设备写入前先读状态位，避免写入时机错误。
+
+## LEA / LDS / LES
+
+### 怎么用
+
+`LEA` 取偏移地址：
 
 ```asm
-LEA reg16, mem
+LEA SI, [BX+DI+4]
 ```
 
-功能：
+`LDS` / `LES` 装入远指针：
+
+```asm
+LDS SI, far_ptr_mem
+LES DI, far_ptr_mem
+```
+
+### 注释与命名建议
+
+- 远指针变量命名：`far_ptr_xxx`。
+- 注释明确“取地址还是取内容”。
+
+```asm
+LEA BX, table         ; BX <- table 偏移地址
+MOV BX, table         ; BX <- table[0] 内容
+```
+
+### 易错点
+
+- 把 `LEA` 当作“读内存内容”。
+- `LDS/LES` 源不是合法的 4 字节远指针布局。
+
+### 注意点
+
+- 8086 中远指针内存布局是“偏移在前、段在后”。
+
+## 寻址规则实用表
 
 ```text
-把内存操作数的有效地址送入 16 位通用寄存器。
+[BX] [SI] [DI]      -> 默认 DS
+[BP] [BP+SI] [BP+DI] -> 默认 SS
+段超越前缀 ES:xxx   -> 以 ES 为准
 ```
 
-例子：
+## 一段可复用模板
 
 ```asm
-LEA BX, [SI]
+; 复制 len 个字节: src -> dst
+MOV SI, OFFSET src_buf      ; 源地址
+MOV DI, OFFSET dst_buf      ; 目的地址
+MOV CX, len                 ; 长度
+CLD                         ; 正向
+copy_loop:
+    MOV AL, [SI]            ; 读源字节
+    MOV [DI], AL            ; 写目标字节
+    INC SI
+    INC DI
+    LOOP copy_loop
 ```
 
-如果：
+## 章末检查清单
 
-```text
-DS:[1000H] = 1234H
-SI = 1000H
-```
-
-执行后：
-
-```text
-BX = 1000H
-```
-
-对比：
-
-```asm
-MOV BX, [SI]
-```
-
-执行后：
-
-```text
-BX = 1234H
-```
-
-结论：
-
-```text
-LEA 取地址，MOV 取内容。
-```
-
-## LDS 和 LES
-
-`LDS` 从内存中装入 4 字节远指针。
-
-格式：
-
-```asm
-LDS reg16, mem
-```
-
-功能：
-
-```text
-reg16 = mem 中前 2 字节
-DS    = mem 中后 2 字节
-```
-
-例子：
-
-```asm
-LDS SI, [450H]
-```
-
-如果：
-
-```text
-DS:[450H] = F346H
-DS:[452H] = 0A90H
-```
-
-执行后：
-
-```text
-SI = F346H
-DS = 0A90H
-```
-
-`LES` 类似，只是把段地址装入 `ES`：
-
-```asm
-LES DI, [BX]
-```
-
-如果：
-
-```text
-DS:[BX]   = 0300H
-DS:[BX+2] = 0500H
-```
-
-执行后：
-
-```text
-DI = 0300H
-ES = 0500H
-```
-
-## 标志传送指令
-
-`LAHF` 把 `FLAGS` 低字节送入 `AH`：
-
-```asm
-LAHF
-```
-
-`SAHF` 把 `AH` 中的相关位送回 `FLAGS`：
-
-```asm
-SAHF
-```
-
-`PUSHF` 把整个标志寄存器压栈：
-
-```asm
-PUSHF
-```
-
-`POPF` 从栈中恢复标志寄存器：
-
-```asm
-POPF
-```
-
-注意：
-
-```text
-SAHF 和 POPF 会改变标志位。
-```
-
-## 标志位操作指令
-
-进位标志 `CF`：
-
-```asm
-CLC     ; CF = 0
-STC     ; CF = 1
-CMC     ; CF = ~CF
-```
-
-方向标志 `DF`：
-
-```asm
-CLD     ; DF = 0，串操作地址自动增加
-STD     ; DF = 1，串操作地址自动减少
-```
-
-中断标志 `IF`：
-
-```asm
-CLI     ; IF = 0，关中断
-STI     ; IF = 1，开中断
-```
+- 是否出现内存到内存 `MOV`。
+- 是否出现位宽不匹配。
+- 是否在 `BP` 寻址场景误用 `DS`。
+- `IN/OUT` 是否严格使用 `AL/AX`。
+- 查表是否验证索引范围。

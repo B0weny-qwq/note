@@ -1,276 +1,137 @@
 ---
 sidebar_position: 4
-title: 数据定义与栈操作
-description: 整理 DB、DW、DUP、小端存储、PUSH、POP 和栈的基本规则。
+title: 数据定义与栈操作实战
+description: 详细整理 DB/DW/DUP、端序、PUSH/POP、栈帧与寄存器保护的规范写法和常见问题。
 ---
 
-# 数据定义与栈操作
+# 数据定义与栈操作实战
 
 ## 背景
 
-8086 程序需要在数据段中定义变量，在堆栈段中保存临时数据、返回地址和现场。数据定义和栈操作虽然属于基础内容，但非常容易和字节、字、地址顺序混淆。
+8086 程序稳定性很大程度取决于两件事：数据布局是否清晰、栈是否平衡。很多“偶发 bug”都是因为 `PUSH/POP` 失配或数据宽度定义错误。
 
-## 数据段格式
+## DB / DW / DUP
 
-例子：
-
-```asm
-DATA SEGMENT
-AREA1  DB 14H, 3BH
-AREA2  DB 3 DUP(0)
-ARRAY  DW 3100H, 01A6H
-STRING DB 'GOOD'
-DATA ENDS
-```
-
-含义：
-
-```text
-DB      Define Byte，定义字节
-DW      Define Word，定义字
-DUP     重复定义
-```
-
-## DB
-
-`DB` 定义字节数据，一个数据占 8 位。
+### 怎么用
 
 ```asm
-NUM DB 09H, 03H, 08H, 01H
+byte_val   DB 12H
+word_val   DW 1234H
+buf_16     DB 16 DUP(0)
+stack_area DW 64 DUP(?)
 ```
 
-C 对照：
+### 注释与命名建议
 
-```c
-unsigned char NUM[] = {0x09, 0x03, 0x08, 0x01};
-```
-
-字符也可以用 `DB` 定义：
+- 变量名带宽度语义：`u8_`、`u16_`、`buf_`。
+- 注释写容量单位，避免“16 是字节还是元素”歧义。
 
 ```asm
-STRING DB 'GOOD'
+rx_buf DB 64 DUP(0)      ; 64 bytes RX buffer
 ```
 
-## DW
+### 易错点
 
-`DW` 定义字数据，一个数据占 16 位。
+- 把 `DW` 当字节数组用，索引步长错。
+- `DUP(?)` 当已清零内存用。
 
-```asm
-result DW 0
-```
+### 注意点
 
-C 对照：
-
-```c
-unsigned short result = 0;
-```
-
-数组例子：
-
-```asm
-ARRAY DW 3100H, 01A6H
-```
-
-## DUP
-
-`DUP` 用于重复定义。
-
-```asm
-AREA2 DB 3 DUP(0)
-```
-
-含义：
-
-```text
-定义 3 个字节，初值都为 0。
-```
-
-堆栈区常见写法：
-
-```asm
-DW 64 DUP(?)
-```
-
-含义：
-
-```text
-定义 64 个未初始化的字。
-```
+- 需要零初始化时用 `DUP(0)`，不是 `DUP(?)`。
 
 ## 小端存储
 
-8086 使用小端方式保存字数据：
+### 怎么用
 
 ```asm
-ARRAY DW 3100H
+num DW 3100H
 ```
 
-内存中低地址放低字节，高地址放高字节：
+内存布局：
 
 ```text
-低地址：00H
-高地址：31H
+低地址: 00H
+高地址: 31H
 ```
 
-结论：
+### 易错点
 
-```text
-低字节在前，高字节在后。
-```
+- 调试内存窗口时按大端理解，误判程序错误。
 
-## 栈的基本特点
+### 注意点
 
-8086 的栈在 `SS` 段中，栈顶由 `SP` 指向。
+- 看 16 位值时总是“低字节在前、高字节在后”。
 
-特点：
+## PUSH / POP
 
-```text
-先进后出 FILO
-栈操作单位是字，也就是 16 位
-PUSH 只压入字
-POP 只弹出字
-SP 指向当前栈顶
-入栈时 SP 减小
-出栈时 SP 增大
-```
-
-栈的增长方向：
-
-```text
-高地址 -> 低地址
-```
-
-## PUSH
-
-格式：
-
-```asm
-PUSH src
-```
-
-功能：
-
-```asm
-SP = SP - 2
-SS:[SP] = src
-```
-
-`src` 可以是：
-
-```text
-16 位通用寄存器
-段寄存器
-16 位存储器操作数
-```
-
-例子：
+### 怎么用
 
 ```asm
 PUSH AX
 PUSH BX
-PUSH DS
-PUSH WORD PTR [BX]
+; ...
+POP BX
+POP AX
 ```
 
-常见错误：
-
-```asm
-PUSH AL       ; 错，不能压入字节
-PUSH 1234H    ; 8086 下通常不允许立即数直接入栈
-```
-
-## POP
-
-格式：
-
-```asm
-POP dest
-```
-
-功能：
-
-```asm
-dest = SS:[SP]
-SP = SP + 2
-```
-
-`dest` 可以是：
+语义：
 
 ```text
-16 位通用寄存器
-段寄存器
-16 位存储器操作数
+PUSH: SP = SP - 2, [SS:SP] = src
+POP : dst = [SS:SP], SP = SP + 2
 ```
 
-例子：
+### 注释与命名建议
+
+- 过程头部统一写“保护寄存器列表”。
 
 ```asm
-POP AX
-POP BX
-POP DS
-POP WORD PTR [SI]
-```
-
-常见错误：
-
-```asm
-POP DL       ; 错，DL 是 8 位
-POP CS       ; 错，CS 不能作为 POP 目的操作数
-```
-
-## PUSH / POP 顺序
-
-例子：
-
-```asm
+; save: AX BX SI
+PUSH AX
+PUSH BX
 PUSH SI
-PUSH CX
-PUSH BX
-
-POP BX
-POP CX
-POP SI
 ```
 
-说明：
+### 易错点
 
-```text
-栈是后进先出。
-先 PUSH 的要后 POP，后 PUSH 的要先 POP。
-```
+- `PUSH AL` / `POP DL`：8086 下字节寄存器不允许入栈出栈。
+- `POP` 顺序与 `PUSH` 同序，导致值错位。
+- 跳转分支里提前 `RET`，没把栈恢复完整。
 
-## 栈操作例子
+### 注意点
 
-已知：
+- `PUSH` 与 `POP` 必须严格成对出现。
+- 每新增一个 `PUSH`，必须在所有返回路径补对应 `POP`。
 
-```text
-AX = 1000H
-BX = 2000H
-CX = 4000H
-SP = 1000H
-```
-
-执行：
+## 常见过程保护模板
 
 ```asm
-PUSH AX
-PUSH BX
-PUSH CX
-POP BX
-POP AX
-POP CX
+proc_xxx PROC NEAR
+    PUSH AX
+    PUSH BX
+    PUSH SI
+    ; body
+    POP SI
+    POP BX
+    POP AX
+    RET
+proc_xxx ENDP
 ```
 
-最后结果：
+## 栈相关调试技巧
 
-```text
-BX = 4000H
-AX = 2000H
-CX = 1000H
-```
+- 入口保存初始 `SP`，退出前比对，快速发现栈泄漏。
+- 对复杂过程临时加断点检查 `SS:SP` 变化是否符合预期。
 
-原因：
+## 数据段组织建议
 
-```text
-最后压入的是 CX，所以第一次 POP 得到 4000H。
-```
+- 常量区与可写区分开定义。
+- 缓冲区和状态变量按模块分组，避免散放。
+- 同一类数据统一后缀：`_cnt`、`_idx`、`_flag`。
+
+## 章末检查清单
+
+- 所有变量定义是否位宽明确。
+- `DUP(?)` 是否仅用于无需初值区域。
+- 每条返回路径是否都恢复了栈。
+- 是否存在字节寄存器 `PUSH/POP` 误用。

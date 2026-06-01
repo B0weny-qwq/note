@@ -1,524 +1,224 @@
 ---
 sidebar_position: 6
-title: BCD、逻辑与移位指令
-description: 整理 BCD 调整指令、逻辑运算指令、移位指令和循环移位指令。
+title: 循环与字符串指令实战
+description: 详细整理 LOOP、REP、MOVS/CMPS/SCAS/LODS/STOS 的具体写法、命名注释规范、易错点和注意事项。
 ---
 
-# BCD、逻辑与移位指令
+# 循环与字符串指令实战
 
 ## 背景
 
-算术运算之外，8086 还常用 BCD 调整指令处理十进制数，用逻辑指令处理位，用移位和循环移位指令完成乘除 2、取位、拼接和状态处理。
+字符串指令能显著简化批量内存处理，但前提是 `SI/DI/CX/DF` 四个状态必须正确初始化。多数 bug 都不是指令本身错，而是上下文没准备好。
 
-## BCD 类型
+## LOOP / JCXZ
 
-压缩 BCD：
-
-```text
-一个字节放两个十进制数字。
-59 = 0101 1001B = 59H
-```
-
-非压缩 BCD：
-
-```text
-一个字节只放一个十进制数字，低 4 位有效，高 4 位通常为 0。
-9 = 0000 1001B = 09H
-```
-
-ASCII 数字：
-
-```text
-数字字符需要加 30H。
-'9' = 39H
-'5' = 35H
-```
-
-## DAA 和 DAS
-
-`DAA` 用于压缩 BCD 加法后调整。
+### 怎么用
 
 ```asm
-MOV AL, 27H
-ADD AL, 18H
-DAA
+MOV CX, count
+loop_begin:
+    ; body
+    LOOP loop_begin
 ```
 
-结果：
-
-```text
-AL = 45H
-```
-
-`DAS` 用于压缩 BCD 减法后调整。
+`JCXZ` 用于零次处理快速退出：
 
 ```asm
-MOV AL, 27H
-SUB AL, 18H
-DAS
+JCXZ done
 ```
 
-结果：
+### 注释与命名建议
 
-```text
-AL = 09H
-```
+- 循环标签统一：`loop_xxx_begin/loop_xxx_end`。
+- 注释写循环不变量，例如“`CX` 为剩余元素数”。
 
-## AAA 和 AAS
+### 易错点
 
-`AAA` 用于非压缩 BCD 或 ASCII 加法后调整。
+- `LOOP` 自动 `DEC CX`，又手动 `DEC CX`，导致少处理一轮。
+- `CX` 未初始化就进入 `LOOP`。
+
+### 注意点
+
+- 大批量处理时先 `JCXZ` 防御空输入。
+
+## 方向标志 DF
+
+### 怎么用
 
 ```asm
-MOV AH, 0
-MOV AL, 09H
-MOV BL, 05H
-ADD AL, BL
-AAA
+CLD   ; 正向，SI/DI 自增
+STD   ; 反向，SI/DI 自减
 ```
 
-结果：
+### 注释与命名建议
 
-```text
-AX = 0104H，表示 14。
-```
+- 每次进入字符串流程前显式写 `CLD` 或 `STD`，并注释方向。
 
-如果原来是 ASCII 数字，最后可以转回 ASCII：
+### 易错点
+
+- 上一个流程改了 `DF`，新流程没重置，导致指针反向跑。
+
+### 注意点
+
+- 除非明确反向扫描，默认使用 `CLD`。
+
+## MOVS / REP MOVS
+
+### 怎么用
+
+逐字节复制：
 
 ```asm
-OR AX, 3030H
+CLD
+MOV SI, OFFSET src_buf
+MOV DI, OFFSET dst_buf
+MOV CX, len
+REP MOVSB
 ```
 
-`AAS` 用于非压缩 BCD 或 ASCII 减法后调整。
+逐字复制：
 
 ```asm
-SUB AL, BL
-AAS
+REP MOVSW
 ```
 
-## AAM 和 AAD
+### 注释与命名建议
 
-`AAM` 用于非压缩 BCD 乘法后调整。
+- 源/目的缓冲区命名：`src_xxx`、`dst_xxx`。
+- 明确 `CX` 单位：字节还是字。
 
 ```asm
-MOV AL, 09H
-MOV BL, 06H
-MUL BL
-AAM
+MOV CX, payload_bytes      ; 字节数
+REP MOVSB
 ```
 
-结果：
+### 易错点
 
-```text
-AH = 05H
-AL = 04H
-```
+- `MOVSW` 仍按字节长度装 `CX`，结果复制减半或越界。
+- 忘记设置 `ES:DI`。
 
-表示十进制 `54`。
+### 注意点
 
-`AAD` 用于非压缩 BCD 除法前调整。
+- 复制重叠区时别直接用 `REP MOVSB`，应根据方向选择前向/后向策略。
+
+## CMPS / REPE / REPNE
+
+### 怎么用
+
+比较两个缓冲区是否相等：
 
 ```asm
-; AX = 0307H，表示十进制 37
-; BL = 05H
-AAD
-DIV BL
+CLD
+MOV SI, OFFSET a_buf
+MOV DI, OFFSET b_buf
+MOV CX, len
+REPE CMPSB
+JNE not_equal
 ```
 
-调整前：
+### 注释与命名建议
 
-```text
-AH = 03H
-AL = 07H
-```
+- `equal`、`not_equal` 标签名比 `L1/L2` 更安全。
 
-`AAD` 后：
+### 易错点
 
-```text
-AL = AH * 10 + AL
-AH = 0
-```
+- `REPE` 与 `REPNE` 用反。
+- 比较前忘记统一长度。
 
-口诀：
+### 注意点
 
-```text
-加减乘：调整在后。
-除法：AAD 在前。
-```
+- 结束后可通过 `ZF` 判断最后一次比较结果，通过 `CX` 判断提前停止还是比较完。
 
-## NOT
+## SCAS / REPNE SCAS
 
-格式：
+### 怎么用
+
+在字符串中查字符：
 
 ```asm
-NOT reg/mem
+CLD
+MOV AL, target_char
+MOV DI, OFFSET buf
+MOV CX, len
+REPNE SCASB
+JZ found
 ```
 
-功能：
+### 注释与命名建议
 
-```text
-按位取反，0 变 1，1 变 0。
-```
+- 标签命名：`found`、`not_found`。
+- 注释写“查找目标值”和“扫描长度”。
 
-例子：
+### 易错点
+
+- 把目标值放错寄存器（`SCASB` 比较的是 `AL` 与 `ES:[DI]`）。
+
+### 注意点
+
+- `SCAS` 默认访问 `ES:DI`，不是 `DS:SI`。
+
+## LODS / STOS
+
+### 怎么用
 
 ```asm
-NOT AX
-NOT BL
-NOT BYTE PTR [BX]
+LODSB     ; AL <- DS:[SI]
+STOSB     ; ES:[DI] <- AL
 ```
 
-注意：
-
-```text
-NOT 不影响标志位。
-```
-
-## AND
-
-格式：
+例：过滤并重写字符流
 
 ```asm
-AND dest, src
+CLD
+MOV SI, OFFSET src
+MOV DI, OFFSET dst
+MOV CX, src_len
+filter_loop:
+    LODSB
+    ; modify AL
+    STOSB
+    LOOP filter_loop
 ```
 
-功能：
+### 注释与命名建议
 
-```text
-dest = dest & src
-```
+- `src_len`、`dst_len` 分开命名，不复用一个计数变量。
 
-常用作用：清零某些位，保留某些位。
+### 易错点
 
-规律：
+- `STOSB` 写的是 `ES:DI`，忘了初始化 `ES`。
 
-```text
-和 1 相与：保持不变。
-和 0 相与：清 0。
-```
+### 注意点
 
-例子：
-
-```asm
-AND AL, 0FH     ; 屏蔽高 4 位，只保留低 4 位
-AND AL, 0FCH    ; 清除 AL 的第 0、1 位
-```
-
-## OR
-
-格式：
-
-```asm
-OR dest, src
-```
-
-功能：
-
-```text
-dest = dest | src
-```
-
-常用作用：把某些位置 1。
-
-规律：
-
-```text
-和 0 相或：保持不变。
-和 1 相或：置 1。
-```
-
-例子：
-
-```asm
-OR AL, 20H
-OR AX, 3030H
-```
-
-## XOR
-
-格式：
-
-```asm
-XOR dest, src
-```
-
-功能：
-
-```text
-dest = dest XOR src
-```
-
-常用作用：翻转某些位，或者清零寄存器。
-
-规律：
-
-```text
-和 0 异或：保持不变。
-和 1 异或：取反。
-```
-
-例子：
-
-```asm
-XOR AL, 03H
-XOR AX, AX
-```
-
-## TEST
-
-格式：
-
-```asm
-TEST dest, src
-```
-
-功能：
-
-```text
-临时计算 dest & src，只影响标志位，不保存结果。
-```
-
-例子：
-
-```asm
-TEST AL, 80H
-JNZ  T_ALARM
-```
-
-含义：
-
-```text
-测试 AL 的最高位是否为 1。
-```
-
-## 逻辑指令对标志位的影响
-
-`AND`、`OR`、`XOR`、`TEST`：
-
-```text
-CF = 0
-OF = 0
-根据结果设置 SF、ZF、PF
-AF 不确定
-```
-
-`NOT`：
-
-```text
-不影响标志位。
-```
-
-## 移位指令格式
-
-格式：
-
-```asm
-移位指令  操作数, 计数值
-```
-
-计数值只能是：
-
-```asm
-1
-CL
-```
-
-例子：
-
-```asm
-SHL AX, 1
-MOV CL, 3
-SHL AX, CL
-```
-
-## SHL 和 SAL
-
-格式：
-
-```asm
-SHL dest, count
-SAL dest, count
-```
-
-`SHL` 和 `SAL` 功能相同。
-
-功能：
-
-```text
-所有位左移。
-最低位补 0。
-最高位移入 CF。
-```
-
-效果：
-
-```text
-左移 1 位，相当于无符号数乘以 2。
-```
-
-例子：
-
-```asm
-MOV AH, 00000110B
-SHL AH, 1
-```
-
-结果：
-
-```text
-AH = 00001100B
-```
-
-## SHR
-
-格式：
-
-```asm
-SHR dest, count
-```
-
-功能：
-
-```text
-所有位右移。
-最高位补 0。
-最低位移入 CF。
-```
-
-适合无符号数。
-
-效果：
-
-```text
-右移 1 位，相当于无符号数除以 2。
-```
-
-## SAR
-
-格式：
-
-```asm
-SAR dest, count
-```
-
-功能：
-
-```text
-所有位右移。
-最高位保持原符号位。
-最低位移入 CF。
-```
-
-适合带符号数。
-
-例子：
-
-```asm
-MOV AL, 10000000B
-MOV CL, 3
-SAR AL, CL
-```
-
-结果：
-
-```text
-AL = 11110000B，即 -16。
-```
-
-## 循环移位指令
-
-普通移位会丢掉移出去的位，循环移位会把移出去的位绕回另一端，或者让 `CF` 参与循环。
-
-`ROL` 循环左移：
-
-```asm
-ROL dest, count
-```
-
-功能：
-
-```text
-最高位移到最低位，同时进入 CF。
-```
-
-`ROR` 循环右移：
-
-```asm
-ROR dest, count
-```
-
-功能：
-
-```text
-最低位移到最高位，同时进入 CF。
-```
-
-`RCL` 带进位循环左移：
-
-```asm
-RCL dest, count
-```
-
-功能：
-
-```text
-把 CF 也看成循环链条的一部分。
-最高位进入 CF，原 CF 进入最低位。
-```
-
-`RCR` 带进位循环右移：
-
-```asm
-RCR dest, count
-```
-
-功能：
-
-```text
-把 CF 也看成循环链条的一部分。
-最低位进入 CF，原 CF 进入最高位。
-```
-
-区别：
-
-```text
-ROL/ROR：小循环，不带 CF 参与循环。
-RCL/RCR：大循环，把 CF 也算进循环。
-```
+- 用 `REP STOSB` 清零内存时，先准备 `AL=0`。
 
 ## 常用模板
 
-无符号数乘 10：
+### 模板 1：缓冲区清零
 
 ```asm
-XOR AH, AH
-SHL AX, 1      ; 2 * AL
-MOV BX, AX
-SHL AX, 1      ; 4 * AL
-SHL AX, 1      ; 8 * AL
-ADD AX, BX     ; 10 * AL
+CLD
+MOV DI, OFFSET buf
+MOV CX, buf_len
+XOR AL, AL
+REP STOSB
 ```
 
-测试某一位是否为 1：
+### 模板 2：字符串比较（固定长度）
 
 ```asm
-TEST AL, 80H
-JNZ  LABEL
+CLD
+MOV SI, OFFSET lhs
+MOV DI, OFFSET rhs
+MOV CX, n
+REPE CMPSB
+JNE diff
+; equal
 ```
 
-清某些位：
+## 章末检查清单
 
-```asm
-AND AL, mask
-```
-
-置某些位：
-
-```asm
-OR AL, mask
-```
-
-翻转某些位：
-
-```asm
-XOR AL, mask
-```
+- 方向位 `DF` 是否显式设置。
+- `SI/DI/CX` 是否按指令语义初始化。
+- `DS` 与 `ES` 是否正确。
+- `MOVSB/MOVSW` 的长度单位是否正确。
