@@ -4,6 +4,6 @@
   "link": {
     "type": "generated-index",
     "slug": "/study/info-theory-coding",
-    "description": "信息论与编码的绪论、熵、信道容量、率失真、信源编码和信道编码笔记。"
+    "description": "按知识点拆分的信息论与编码笔记，覆盖术语解释、公式推导、例子和生活类比。"
   }
 }
