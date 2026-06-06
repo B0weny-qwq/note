@@ -15,9 +15,7 @@ function HomepageHeader() {
         </Heading>
         <p className="hero__subtitle">{siteConfig.tagline}</p>
         <div className={styles.buttons}>
-          <Link
-            className="button button--secondary button--lg"
-            to="/docs/intro">
+          <Link className="button button--secondary button--lg" to="/docs/intro">
             开始阅读
           </Link>
           <Link
@@ -40,7 +38,7 @@ export default function Home() {
           <div className="container">
             <Heading as="h2">笔记分类</Heading>
             <div className={styles.grid}>
-              <Link className={styles.card} to="/docs/study/asm-8086">
+              <Link className={styles.card} to="/docs/study/8086汇编">
                 <h3>学习笔记</h3>
                 <p>记录课程、论文、技术文档、实验过程和复盘。</p>
               </Link>

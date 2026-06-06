@@ -7,6 +7,9 @@
   --ifm-color-primary-lighter: #60a5fa;
   --ifm-color-primary-lightest: #93c5fd;
   --ifm-code-font-size: 95%;
+  --ifm-font-family-base: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  --ifm-heading-font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  --ifm-font-family-monospace: "Cascadia Code", "JetBrains Mono", "Consolas", "Microsoft YaHei Mono", monospace;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
 }
 
@@ -19,4 +22,36 @@
   --ifm-color-primary-lighter: #bfdbfe;
   --ifm-color-primary-lightest: #dbeafe;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+html,
+body {
+  font-family: var(--ifm-font-family-base);
+}
+
+.navbar__title,
+.hero__title,
+.hero__subtitle,
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4,
+.markdown h5,
+.markdown h6,
+.card h3,
+.footer {
+  font-family: var(--ifm-heading-font-family);
+}
+
+.markdown p,
+.markdown li,
+.markdown table,
+.menu__link,
+.pagination-nav__label,
+.pagination-nav__sublabel {
+  font-family: var(--ifm-font-family-base);
+}
+
+.katex {
+  font-size: 1.05em;
 }

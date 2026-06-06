@@ -1,6 +1,8 @@
 // @ts-check
 
 import {themes as prismThemes} from 'prism-react-renderer';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
@@ -38,6 +40,8 @@ const config = {
         docs: {
           sidebarPath: './sidebars.js',
           editUrl: 'https://github.com/B0weny-qwq/note/tree/main/',
+          remarkPlugins: [remarkMath],
+          rehypePlugins: [rehypeKatex],
         },
         blog: false,
         theme: {
@@ -47,6 +51,16 @@ const config = {
     ],
   ],
 
+  stylesheets: [
+    {
+      href: 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css',
+      type: 'text/css',
+      integrity:
+        'sha384-n8MVd4RsNIU0lKQqK4s6vJ0sP3pXBJgp7wa9u0JPFpKnz03WxZmf0RduCMsZ/HXX',
+      crossorigin: 'anonymous',
+    },
+  ],
+
   plugins: [
     [
       '@docusaurus/plugin-client-redirects',
@@ -54,11 +68,19 @@ const config = {
         redirects: [
           {
             from: '/docs/category/8086-汇编',
-            to: '/docs/study/asm-8086',
+            to: '/docs/study/8086汇编',
           },
           {
             from: '/docs/category/学习笔记',
             to: '/docs/study',
+          },
+          {
+            from: '/docs/study/asm-8086',
+            to: '/docs/study/8086汇编',
+          },
+          {
+            from: '/docs/study/info-theory-coding',
+            to: '/docs/study/信息论与编码',
           },
         ],
       },

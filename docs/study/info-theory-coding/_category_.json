@@ -1,9 +1,0 @@
-{
-  "label": "信息论与编码",
-  "position": 30,
-  "link": {
-    "type": "generated-index",
-    "slug": "/study/info-theory-coding",
-    "description": "按知识点拆分的信息论与编码笔记，覆盖术语解释、公式推导、例子和生活类比。"
-  }
-}

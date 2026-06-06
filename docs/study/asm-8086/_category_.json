@@ -1,9 +1,0 @@
-{
-  "label": "8086 汇编",
-  "position": 20,
-  "link": {
-    "type": "generated-index",
-    "slug": "/study/asm-8086",
-    "description": "8086 汇编、存储器、I/O 接口、8255 和 8253 的课程笔记。"
-  }
-}
