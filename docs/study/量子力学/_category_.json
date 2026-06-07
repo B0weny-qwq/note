@@ -1,0 +1,9 @@
+{
+  "label": "量子力学",
+  "position": 40,
+  "link": {
+    "type": "generated-index",
+    "slug": "/study/量子力学",
+    "description": "按知识点拆分的量子力学理解笔记，重点整理公式推导、边界条件、LaTeX 公式和难点注释。"
+  }
+}

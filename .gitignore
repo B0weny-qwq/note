@@ -16,6 +16,9 @@
 /docs/信息论与编码/*.pdf
 /docs/8086/md/
 /docs/信息论与编码/md/
+/docs/量子力学/*.pdf
+/outputs/
+/tmp/
 
 # Misc
 .DS_Store
