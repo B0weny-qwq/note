@@ -57,3 +57,11 @@ body {
 .katex {
   font-size: 1.05em;
 }
+
+.note-image {
+  display: block;
+  width: min(100%, var(--note-image-width, 760px));
+  height: auto;
+  margin: 1rem auto;
+  border-radius: 8px;
+}
