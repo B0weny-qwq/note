@@ -51,16 +51,6 @@ const config = {
     ],
   ],
 
-  stylesheets: [
-    {
-      href: 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css',
-      type: 'text/css',
-      integrity:
-        'sha384-n8MVd4RsNIU0lKQqK4s6vJ0sP3pXBJgp7wa9u0JPFpKnz03WxZmf0RduCMsZ/HXX',
-      crossorigin: 'anonymous',
-    },
-  ],
-
   plugins: [
     [
       '@docusaurus/plugin-client-redirects',
