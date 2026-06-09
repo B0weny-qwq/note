@@ -1,0 +1,9 @@
+{
+  "label": "电磁场与电磁波",
+  "position": 50,
+  "link": {
+    "type": "generated-index",
+    "slug": "/study/电磁场与电磁波",
+    "description": "按知识点拆分的电磁场与电磁波笔记，重点整理矢量分析、静电场、恒定磁场、电磁波和场的类比。"
+  }
+}
